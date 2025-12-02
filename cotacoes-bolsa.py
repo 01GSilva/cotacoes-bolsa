@@ -178,7 +178,7 @@ def pedir_valores_renda_fixa():
             linha = {
                 'Ação': 'Renda Fixa',
                 'Valor em USD': None,
-                'Cotação Dolar': None,
+                'Cotação Dólar': None,
                 'Valor em Reais': valor,
                 'Atualizado em': agora
             }
@@ -226,6 +226,32 @@ df_int = pedir_valores_internacionais()
 df_fii = coletar_precos(fiis, "FII")
 df_rf = pedir_valores_renda_fixa()
 
+# ---------------- PORCENTAGENS -------------------
+
+total_na = df_na['Total Investido'].sum()
+total_int = df_int['Valor em Reais'].sum()
+total_fii = df_fii['Total Investido'].sum()
+total_rf = df_rf['Valor em Reais'].sum()
+
+total_geral = total_na + total_int + total_fii + total_rf
+
+if total_geral == 0:
+    print('Nenhum valor total encontrado. Impossivel calcular porcentagem')
+else:
+    pct_na = (total_na/total_geral)*100
+    pct_int = (total_int/total_geral)*100
+    pct_fii = (total_fii/total_geral)*100
+    pct_rf = (total_rf/total_geral)*100
+
+porcentagens = {
+    'Nacionais': [pct_na],
+    'Internacionais': [pct_int],
+    'Fiis': [pct_fii],
+    'Renda Fixa': [pct_rf]
+}
+
+df_pct = pd.DataFrame(porcentagens)
+
 # ---------------- EXPORTAÇÃO -------------------
 
 with pd.ExcelWriter(arquivo_excel, engine="openpyxl", mode="w") as writer:
@@ -233,6 +259,7 @@ with pd.ExcelWriter(arquivo_excel, engine="openpyxl", mode="w") as writer:
     df_int.to_excel(writer, sheet_name="Ações Internacionais", index=False)
     df_fii.to_excel(writer, sheet_name="FIIs", index=False)
     df_rf.to_excel(writer, sheet_name="Renda Fixa", index=False)
+    df_pct.to_excel(writer, sheet_name="Porcentagens", index=False)
 
 # ---------------- FORMATAÇÃO -------------------
 
