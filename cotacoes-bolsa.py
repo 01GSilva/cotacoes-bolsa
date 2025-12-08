@@ -208,6 +208,39 @@ def pedir_valores_renda_fixa():
 
     return resultado[0] if resultado else None
 
+# ---------------- NOVO APORTE -------------------
+
+
+def pedir_valor_aporte():
+    def confirmar():
+        try:
+            txt = entry.get().strip()
+            valor = float(txt.replace('.', ',')) if txt else 0.0
+
+            resultado.append(valor)
+            root.destroy()
+
+        except Exception as e:
+            print(f'Erro ao confirmar aporte\n{e}')
+
+    root = tk.Tk()
+    root.title('Novo Aporte (R$)')
+
+    ttk.Label(root, text='Valor do novo aporte (R$):').grid(
+        row=0, column=0, padx=10, pady=10)
+
+    entry = ttk.Entry(root)
+    entry.grid(row=1, column=0, padx=10)
+    entry.insert(0, '0')
+
+    ttk.Button(root, text='Confirmar', command=confirmar).grid(
+        row=2, column=0, pady=10)
+
+    resultado = []
+    root.mainloop()
+
+    return resultado[0] if resultado else 0.0
+
 # ---------------- LISTA DE ATIVOS -------------------
 
 
@@ -225,8 +258,9 @@ df_na = coletar_precos(acoes_na, "Ação")
 df_int = pedir_valores_internacionais()
 df_fii = coletar_precos(fiis, "FII")
 df_rf = pedir_valores_renda_fixa()
+aporte = pedir_valor_aporte()
 
-# ---------------- PORCENTAGENS -------------------
+# ---------------- REBALANCEAMENTO -------------------
 
 total_na = df_na['Total Investido'].sum()
 total_int = df_int['Valor em Reais'].sum()
@@ -252,6 +286,41 @@ porcentagens = {
 
 df_pct = pd.DataFrame(porcentagens)
 
+meta = {
+    'Ações Nacionais': 0.25,
+    'Ações Internacionais': 0.20,
+    'FIIs': 0.25,
+    'Renda Fixa': 0.20
+}
+
+atuais = {
+    'Ações Nacionais': total_na,
+    'Ações Internacionais': total_int,
+    'FIIs': total_fii,
+    'Renda Fixa': total_rf
+}
+
+total_futuro = total_geral + aporte
+ideais = {k: total_futuro * p for k, p in meta.items()}
+diferencas = {k: ideais[k] - atuais[k] for k in atuais}
+
+positivas = {k: max(0, v) for k, v in diferencas.items()}
+soma_positivas = sum(positivas.values())
+
+if soma_positivas > 0:
+    distribuicao = {k: (v / soma_positivas) * aporte for k,
+                    v in positivas.items()}
+else:
+    distribuicao = {k: aporte / len(atuais) for k in atuais}
+
+df_rebalanceamento = pd.DataFrame({
+    'Categoria': list(distribuicao.keys()),
+    'Valor Ideal (R$)': [ideais[k] for k in distribuicao.keys()],
+    'Valor Atual (R$)': [atuais[k] for k in distribuicao.keys()],
+    'Diferença Necessaria (R$)': [positivas[k] for k in distribuicao.keys()],
+    'Aporte distribuido (R$)': [distribuicao[k] for k in distribuicao.keys()]
+})
+
 # ---------------- EXPORTAÇÃO -------------------
 
 with pd.ExcelWriter(arquivo_excel, engine="openpyxl", mode="w") as writer:
@@ -260,12 +329,14 @@ with pd.ExcelWriter(arquivo_excel, engine="openpyxl", mode="w") as writer:
     df_fii.to_excel(writer, sheet_name="FIIs", index=False)
     df_rf.to_excel(writer, sheet_name="Renda Fixa", index=False)
     df_pct.to_excel(writer, sheet_name="Porcentagens", index=False)
+    df_rebalanceamento.to_excel(
+        writer, sheet_name='Rebalanceamento', index=False)
 
 # ---------------- FORMATAÇÃO -------------------
 
 wb = load_workbook(arquivo_excel)
 
-for aba in ["Ações Nacionais", "Ações Internacionais", "FIIs", "Renda Fixa"]:
+for aba in ["Ações Nacionais", "Ações Internacionais", "FIIs", "Renda Fixa", "Rebalanceamento"]:
     ws = wb[aba]
 
     try:
